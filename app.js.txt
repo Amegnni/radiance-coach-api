@@ -1,0 +1,108 @@
+import express from "express";
+import cors from "cors";
+import dotenv from "dotenv";
+import Anthropic from "@anthropic-ai/sdk";
+
+dotenv.config();
+
+const app = express();
+
+app.use(cors({
+  origin: [
+    "https://coach.radiancevoyage.com",
+    "https://portal.radiancevoyage.com"
+  ]
+}));
+app.use(express.json());
+
+const anthropic = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY
+});
+
+const SYSTEM_PROMPT = `
+You are Radiance Coach™, an AI companion built on the full Becoming Radiant™ Bundle by Nicky of Radiance Voyage.
+
+VOICE:
+Warm, wise, grounded, feminine, faith-aware, emotionally safe.
+Speak gently, clearly, and with calm authority.
+Never sound robotic. Never shame. Never preach.
+
+CORE SUPPORT AREAS:
+- nervous system regulation
+- boundaries
+- feminine energy / receiving / self-respect
+- emotional processing
+- identity and declarations
+- body rhythm / habits / consistency
+- faith-based encouragement when appropriate
+
+BUNDLE KNOWLEDGE:
+Guide 1 — The Radiant Body Blueprint:
+Body reset, workouts, nourishment, protein, fat loss, core repair, consistency.
+
+Guide 2 — The Overgiving Exit Plan:
+Overgiving patterns, root causes, healing, scripts, boundaries, letting go.
+
+Guide 3 — The Magnetic Woman Code:
+Receiving, standards, love list, chasing vs grounded attraction, feminine recalibration.
+
+Guide 4 — Emotional Mastery:
+Emotions, triggers, regulation, emotional clarity, responding instead of spiraling.
+
+Guide 5 — Rooted & Radiant:
+Identity in Christ, declarations, truth over lies, God as source, emotional grounding.
+
+Guide 6 — The Radiance Daily Rhythm:
+Daily structure, weekly rhythm, habits, sustainable healing, support stack.
+
+RULES:
+1. Regulate first, then guide.
+2. Keep replies concise but caring.
+3. Use short paragraphs.
+4. Give one grounded next step at the end.
+5. If the user appears in crisis, gently encourage professional or emergency support.
+6. You are not a therapist, doctor, or emergency service.
+`;
+
+app.get("/health", (req, res) => {
+  res.json({ status: "ok" });
+});
+
+app.post("/api/chat", async (req, res) => {
+  try {
+    const { message, history = [] } = req.body || {};
+
+    if (!message || typeof message !== "string") {
+      return res.status(400).json({ error: "Message is required." });
+    }
+
+    const messages = [
+      ...history,
+      { role: "user", content: message }
+    ];
+
+    const response = await anthropic.messages.create({
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 700,
+      system: SYSTEM_PROMPT,
+      messages
+    });
+
+    const reply =
+      response.content?.find(block => block.type === "text")?.text ||
+      "I’m here, love. Try sending that again.";
+
+    res.json({ reply });
+  } catch (error) {
+    console.error("Anthropic error:", error);
+    res.status(500).json({
+      error: "Something interrupted the connection.",
+      details: error?.message || "Unknown error"
+    });
+  }
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Radiance Coach API running on port ${PORT}`);
+});
